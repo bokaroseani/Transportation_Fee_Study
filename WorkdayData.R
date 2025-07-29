@@ -26,3 +26,24 @@ if (grepl("\\.csv$", file_path, ignore.case = TRUE)) {
 }
 
 summary(as.factor(feesCollected$`Cost Center ID`))
+attributes(feesCollected)
+# Make sure you have dplyr installed and loaded
+# install.packages("dplyr")
+library(dplyr)
+
+feesCollected <- feesCollected %>%
+  mutate(
+    # Convert 'Department' and 'Division' to factors
+    Department = as.factor(Department),
+    Division = as.factor(Division),
+    
+    # Convert 'Amount' to numeric
+    Amount = as.numeric(Amount),
+    
+    # Convert 'Header Memo' and 'Line Memo' to character
+    `Header Memo` = as.character(`Header Memo`),
+    `Line Memo` = as.character(`Line Memo`)
+  )
+
+# Display the structure of the data frame and the type of each column
+str(feesCollected)
