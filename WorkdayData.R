@@ -47,3 +47,33 @@ feesCollected <- feesCollected %>%
 
 # Display the structure of the data frame and the type of each column
 str(feesCollected)
+
+
+# Make sure you have the necessary packages installed and loaded
+# install.packages("dplyr")
+# install.packages("lubridate")
+library(dplyr)
+library(lubridate)
+
+yearly_project_summary <- feesCollected %>%
+  # First, ensure the 'Accounting Date' is a Date type, then create a 'Year' column
+  mutate(
+    `Accounting Date` = as.Date(`Accounting Date`), # This step might vary based on your date format
+    Year = year(`Accounting Date`)
+  ) %>%
+  
+  # Group by the new 'Year' column and the 'Project' column
+  group_by(Year, Project) %>%
+  
+  # Calculate the total amount for each group
+  summarise(
+    TotalAmount = sum(Amount, na.rm = TRUE)
+  ) %>%
+  
+  # It's good practice to ungroup after summarizing
+  ungroup()
+
+# View the resulting dataframe
+print(yearly_project_summary)
+
+
