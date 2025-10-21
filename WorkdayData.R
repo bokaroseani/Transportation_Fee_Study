@@ -2,6 +2,7 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(scales)
+library(forcats)
 
 # Choose a file using a dialog box
 file_path <- file.choose()
@@ -414,6 +415,7 @@ temp1 <- tylerpermit |>
 file_path <- file.choose()
 tylerFee <- read.csv(file_path)
 summary(as.factor(tylerFee$Fee.Name))
+tylerFee$Fee.Name <- trimws(tylerFee$Fee.Name)
 
 tylerFee$Amount.Paid <- as.numeric(gsub("[\\$,]", "", tylerFee$Amount.Paid))
 
@@ -432,9 +434,6 @@ setdiff(levels(as.factor(tylerFee$Fee.Name)), transportationPermits)
 transportationPermits <- c(transportationPermits, 
                            "Lane Closure Fee", 
                            "New Driveway Deposit",
-                           "Sewer Permit Fee", 
-                           "Sewer Line Connection Fee",
-                           "Sewer System Development Fee",
                            grep("MCRR", setdiff(levels(as.factor(tylerFee$Fee.Name)), transportationPermits), value = TRUE, ignore.case = TRUE))
 
 setdiff(levels(as.factor(tylerFee$Fee.Name)), transportationPermits)
@@ -442,8 +441,33 @@ transportationPermits
 
 
 temp1 <- tylerFee |> 
-  group_by(Fiscal.Year) |> 
+  filter(Fee.Name %in% transportationPermits) |> 
+  group_by(Fee.Name) |> 
   summarise(Total = n())
+
+ggplot(data = temp1, aes(reorder(Fee.Name, Total), Total)) +
+  geom_col() +
+  geom_text(aes(label = Total), hjust = -0.2, size = 2.5) +
+  coord_flip()
+sum(temp1$Total)
+
+
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |> 
+  group_by(Fee.Name, Fiscal.Year) |> 
+  filter(Fiscal.Year == 2025) |> 
+  filter(!grepl("Deposit", Fee.Name)) |> 
+  summarise(Total.Amount = sum(Amount.Paid))
+
+ggplot(data = temp1, aes(reorder(Fee.Name, Total.Amount), Total.Amount)) +
+  geom_col() +
+  geom_text(aes(label = Total.Amount), hjust = -0.2, size = 2.5) +
+  coord_flip() +
+  labs(title = "FY 2025 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name")
+
+
+
+
 
 temp1 <- tylerFee |> 
   filter(Fee.Name %in% transportationPermits) |> 
@@ -452,7 +476,8 @@ temp1 <- tylerFee |>
             TotalAmount = sum(Amount.Paid, na.rm = TRUE)) |> 
   ungroup()
 
-
+temp1 <- subset(temp1, temp1$Fiscal.Year == 2025)
+sum(temp1$TotalAmount)
 
 ############################################### Old Permits #########################################################
 
@@ -465,20 +490,32 @@ OldPermits$Fiscal.Year <- ifelse(
   as.numeric(format(OldPermits$IssueDate1, "%Y"))
 )
 
+OldPermits$PermitCategory[grep("Bridge Event", OldPermits$PermitCategory)] <- "Bridge Event"
+OldPermits$PermitCategory[grep("Film-Video", OldPermits$PermitCategory)] <- "Film-Video"
+OldPermits$PermitCategory[grep("Right-Of-Way", OldPermits$PermitCategory)] <- "Right-Of-Way"
+OldPermits$PermitCategory[grep("Special Event", OldPermits$PermitCategory)] <- "Special Event"
+
+OldPermits$PermitCategory <- as.factor(OldPermits$PermitCategory)
+levels(OldPermits$PermitCategory) <- c("c) Bridge Event", 
+                                       "f) Film-Video",
+                                       "e) Over Dimension-Overweight", 
+                                       "b) Right-Of-Way",
+                                       "d) Special Event",
+                                       "a) Utility")
+
+desc_levels <- sort(unique(temp1$PermitCategory), decreasing = TRUE)
+temp1$PermitCategory <- factor(temp1$PermitCategory, levels = desc_levels)
 
 temp1 <- OldPermits |> 
   group_by(PermitCategory, Fiscal.Year) |> 
   summarise(Total = n()) |> 
   ungroup()
+desc_levels <- sort(unique(temp1$PermitCategory), ascending = TRUE)
+temp1$PermitCategory <- factor(temp1$PermitCategory, levels = desc_levels)
+
 
 ggplot(temp1, aes(x = Fiscal.Year, y = Total, fill = PermitCategory)) +
-  geom_col(position = "dodge") +
-  geom_text(
-    aes(label = Total),
-    position = position_dodge(width = 0.9),
-    vjust = -0.5,
-    size = 3
-  ) +
+  geom_col(position = "stack") +
   labs(
     title = "Permits by Fiscal Year",
     x = "Fiscal Year",
