@@ -452,6 +452,23 @@ ggplot(data = temp1, aes(reorder(Fee.Name, Total), Total)) +
 sum(temp1$Total)
 
 
+
+
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |> 
+  group_by(Fee.Name, Fiscal.Year) |> 
+  filter(Fiscal.Year == 2024) |> 
+  filter(!grepl("Deposit", Fee.Name)) |> 
+  summarise(Total.Amount = sum(Amount.Paid))
+
+ggplot(data = temp1, aes(reorder(Fee.Name, Total.Amount), Total.Amount)) +
+  geom_col() +
+  geom_text(aes(label = Total.Amount), hjust = -0.2, size = 2.5) +
+  coord_flip() +
+  labs(title = "FY 2024 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name")
+
+
+
 temp1 <- tylerFee |> 
   filter(Fee.Name %in% transportationPermits) |> 
   group_by(Fee.Name, Fiscal.Year) |> 
@@ -466,6 +483,19 @@ ggplot(data = temp1, aes(reorder(Fee.Name, Total.Amount), Total.Amount)) +
   labs(title = "FY 2025 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name")
 
 
+
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |> 
+  group_by(Fee.Name, Fiscal.Year) |> 
+  filter(Fiscal.Year == 2026) |> 
+  filter(!grepl("Deposit", Fee.Name)) |> 
+  summarise(Total.Amount = sum(Amount.Paid))
+
+ggplot(data = temp1, aes(reorder(Fee.Name, Total.Amount), Total.Amount)) +
+  geom_col() +
+  geom_text(aes(label = Total.Amount), hjust = -0.2, size = 2.5) +
+  coord_flip() +
+  labs(title = "FY 2026 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name")
 
 
 
