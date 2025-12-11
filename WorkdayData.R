@@ -5,10 +5,10 @@ library(scales)
 library(forcats)
 
 # Choose a file using a dialog box
-file_path <- file.choose()
+file_path <- file.choose() ## P&D Fee History Detail
 
 # Now you can use file_path with your data loading function
-# For example, if it's a CSV file:
+# For example, if it's a CSV file: 
 if (grepl("\\.csv$", file_path, ignore.case = TRUE)) {
   feesCollected <- read.csv(file_path)
   print("CSV file loaded successfully!")
@@ -28,6 +28,14 @@ if (grepl("\\.csv$", file_path, ignore.case = TRUE)) {
   print("Unsupported file type or no file selected.")
 }
 
+### Add 2026 CSV file
+file_path <- file.choose()
+feesCollected1 <- read.csv(file_path)
+intersect(names(feesCollected), names(feesCollected1))
+feesCollected <- merge(feesCollected, feesCollected1, by = intersect(names(feesCollected), names(feesCollected1)), all.x = TRUE, all.y = TRUE)
+
+
+########################################################
 
 feesCollected$Primary.Cost.ObjectCategory <- sub(" > .*", "", feesCollected$Primary.Cost.Object)
 summary(as.factor(feesCollected$Primary.Cost.ObjectCategory))
@@ -56,6 +64,8 @@ feesCollected$Line.MemoCategory <- ifelse(
 )
 temp <- as.data.frame(summary(as.factor(feesCollected$Line.MemoCategory)))
 
+feesCollected[[5]] <- as.factor(feesCollected[[5]])
+feesCollected[[6]] <- as.factor(feesCollected[[6]])
 
 
 
@@ -76,10 +86,18 @@ feesCollected <- feesCollected %>%
     Header.Memo = as.character(Header.Memo),
     Line.Memo = as.character(Line.Memo),
     FY = ifelse(month(Accounting.Date1) >= 7,
-                        paste0("FY", year(Accounting.Date1) + 1),
-                        paste0("FY", year(Accounting.Date1)))
+                        paste0("FY ", year(Accounting.Date1) + 1),
+                        paste0("FY ", year(Accounting.Date1)))
   )
 temp <- as.data.frame(feesCollected$Accounting.Date1, feesCollected$FY)
+
+temp <- feesCollected |>
+  group_by(Line.Memo) |>
+  summarise(n = n())
+
+temp <- subset(feesCollected, grepl("Transfer unearned revenue to deposits payable from charges for services", feesCollected$Line.Memo))
+temp <- subset(feesCollected, grepl("Transfer Revenue from Deposits", feesCollected$Line.Memo))
+
 # Display the structure of the data frame and the type of each column
 str(feesCollected)
 
@@ -224,6 +242,11 @@ yearly_Ledger.Account <- feesCollected %>%
   ) %>%
   ungroup()
 
+yearly_Ledger.Account$TotalAmount[grep("FY 2026", yearly_Ledger.Account$FY, value = FALSE)] <- 
+  yearly_Ledger.Account$TotalAmount[grep("FY 2026", yearly_Ledger.Account$FY, value = FALSE)]*4
+yearly_Ledger.Account$FY[grep("FY 2026", yearly_Ledger.Account$FY, value = FALSE)] <- "FY 2026\n(estimate)"
+
+
 ggplot(yearly_Ledger.Account, aes(x = FY, y = -1*TotalAmount, fill = Ledger.Account)) +
   geom_col() +
   labs(
@@ -245,14 +268,15 @@ ggplot(yearly_Ledger.Account, aes(x = FY, y = -1*TotalAmount, fill = Ledger.Acco
     size = 3
   ) +
   labs(
-    title = "Permit Fee collection varies less across years than\ncollection from Charges for Services",
+    title = "Transportation Permit Fees Collection by Fiscal Year",
     x = "Fiscal Year",
     y = "Total Amount ($)",
     fill = "Ledger Account"
   ) +
   theme_minimal() +
   scale_y_continuous(labels = label_comma()) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_fill_discrete(labels = c("Flat-fee permits", "Full cost recovery\ncharges for services"))
 
 
 #### Journal.Source
@@ -341,6 +365,11 @@ ggplot(yearly_Project.Plan.Phase, aes(x = FY, y = -1*TotalAmount, fill = Project
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 #########################################################################################################
+####################### EXAMINE FY 2025 FEES ############################################################
+#########################################################################################################
+
+fy25 <- subset(feesCollected, feesCollected$FY == "FY 2025")
+
 
 #####################################################################################################
 #######################   TYLER DATA   ############################################################## 
@@ -416,8 +445,13 @@ file_path <- file.choose()
 tylerFee <- read.csv(file_path)
 summary(as.factor(tylerFee$Fee.Name))
 tylerFee$Fee.Name <- trimws(tylerFee$Fee.Name)
+tylerFee$Fee.Name[tylerFee$Fee.Name == "Lane Closure Fee"] <- "Bridge-§ 27.052 (A)(3)(l) Temporary Closure Street"
+#tylerFee <- subset(tylerFee, tylerFee$Fee.Name != "§ 27.052 (A)(3)(a)  Right of Way - Driveway")
 
-tylerFee$Amount.Paid <- as.numeric(gsub("[\\$,]", "", tylerFee$Amount.Paid))
+# Do I change Fee.Name "Lane Closure Fee" ($500 or $300?) to "Bridge-§ 27.052 (A)(3)(l) Temporary Closure Street" ($550 or $300?)
+
+tylerFee$Amount.Paid1 <- as.numeric(gsub("[\\$,]", "", tylerFee$Amount.Paid))
+tylerFee$Payment.Amount1 <- as.numeric(gsub("[\\$,]", "", tylerFee$Payment.Amount))
 
 tylerFee$Payment.Date1 <- as.Date(tylerFee$Payment.Date, format = "%m/%d/%Y")
 tylerFee$Fiscal.Year <- ifelse(
@@ -425,20 +459,126 @@ tylerFee$Fiscal.Year <- ifelse(
   as.numeric(format(tylerFee$Payment.Date1, "%Y")) + 1,
   as.numeric(format(tylerFee$Payment.Date1, "%Y"))
 )
+tylerFee$Fee.Name <- gsub("MCRR 26.150   TRANSPORTATION: Stormwater Review", "MCRR 26.150 TRANSPORTATION: Stormwater Review", tylerFee$Fee.Name)
+tylerFee$Fee.Name <- gsub("§ 27.052 (A)(3)(a)  Right of Way - Driveway", "§ 27.052 (A)(3)(a) Right of Way - Driveway", tylerFee$Fee.Name)
+grep("§ 27.052 (A)(3)(a) Right of Way - Driveway", tylerFee$Fee.Name)
+
 
 transportationPermits <- grep("§", levels(as.factor(tylerFee$Fee.Name)), value = TRUE)
 transportationPermits <- c(transportationPermits, 
                            grep("Transportation", setdiff(levels(as.factor(tylerFee$Fee.Name)), transportationPermits), value = TRUE, ignore.case = TRUE))
-
+grep("Sewer", levels(as.factor(tylerFee$Fee.Name)), value = TRUE)
 setdiff(levels(as.factor(tylerFee$Fee.Name)), transportationPermits)
 transportationPermits <- c(transportationPermits, 
-                           "Lane Closure Fee", 
                            "New Driveway Deposit",
                            grep("MCRR", setdiff(levels(as.factor(tylerFee$Fee.Name)), transportationPermits), value = TRUE, ignore.case = TRUE))
 
 setdiff(levels(as.factor(tylerFee$Fee.Name)), transportationPermits)
+transportationPermits <- setdiff(transportationPermits, grep("MCC", tylerFee$Fee.Name, value = TRUE))
 transportationPermits
+grep("  ", transportationPermits, value = TRUE)
+tylerFee$Fee.Name <- gsub("  ", " ", tylerFee$Fee.Name)
+transportationPermits <- gsub("  ", " ", transportationPermits)
 
+tylerFee$Fee.Name[tylerFee$Fee.Name == "UT § 27.052 (A)(3)(l) Temporary Closure Street"] <- "Temporary Closure Street for Utilities"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "§ 27.052 (A)(3)(l) Temporary Closure Street"] <- "Temporary Closure Street (Roads)"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "§ 27.052 (C) Right of Way Permit Fee"] <- "Right of Way Permit Fee (Roads)"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "§ 27.055 Street and Road Widening Permit"] <- "Street and Road Widening Permit"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "§ 27.056 Deposit for County Design, PR, Ins."] <- "Deposit for County Design, PR, Ins."
+tylerFee$Fee.Name[tylerFee$Fee.Name == "§ 27.056 Miscellaneous Public Works Fees"] <- "Miscellaneous Public Works Fees"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "§ 29.506 Transportation Compatibility Assessment"] <- "Transportation Compatibility Assessment"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "§ 29.506 Transportation Planning Review"] <- "Transportation Planning Review"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "Bridge-§ 27.052 (A)(3)(l) Temporary Closure Street"] <- "Temporary Closure Street (Bridges)"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "Bridge § 27.052 (C) Right of Way Permit Fee"] <- "Right of Way Permit Fee (Bridges)"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "MCRR 26.150 TRANSPORTATION: Stormwater Review"] <- "Stormwater Review"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "MCRR 16.000: Road Rules Variance"] <- "Road Rules Variance"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "MCRR 18.135 Permit extension"] <- "Permit extension"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "MCRR 7.000: Transportation Impact Study Review"] <- "Transportation Impact Study Review"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "27.054 Road Vacation Feasibility"] <- "Road Vacation Feasibility"
+tylerFee$Fee.Name[tylerFee$Fee.Name == "Appeal of Administrative Decision- Transportation"] <- "Appeal of Administrative Decision"
+
+pattern_clean<- "^.*§.*?\\)\\s*|^(§.*?)\\s+"
+tylerFee$Fee.Name <- sub(pattern_clean, "", tylerFee$Fee.Name)
+
+transportationPermits[transportationPermits == "UT § 27.052 (A)(3)(l) Temporary Closure Street"] <- "Temporary Closure Street for Utilities"
+transportationPermits[transportationPermits == "§ 27.052 (A)(3)(l) Temporary Closure Street"] <- "Temporary Closure Street (Roads)"
+transportationPermits[transportationPermits == "§ 27.052 (C) Right of Way Permit Fee"] <- "Right of Way Permit Fee (Roads)"
+transportationPermits[transportationPermits == "§ 27.055 Street and Road Widening Permit"] <- "Street and Road Widening Permit"
+transportationPermits[transportationPermits == "§ 27.056 Deposit for County Design, PR, Ins."] <- "Deposit for County Design, PR, Ins."
+transportationPermits[transportationPermits == "§ 27.056 Miscellaneous Public Works Fees"] <- "Miscellaneous Public Works Fees"
+transportationPermits[transportationPermits == "§ 29.506 Transportation Compatibility Assessment"] <- "Transportation Compatibility Assessment"
+transportationPermits[transportationPermits == "§ 29.506 Transportation Planning Review"] <- "Transportation Planning Review"
+transportationPermits[transportationPermits == "Bridge-§ 27.052 (A)(3)(l) Temporary Closure Street"] <- "Temporary Closure Street (Bridges)"
+transportationPermits[transportationPermits == "Bridge § 27.052 (C) Right of Way Permit Fee"] <- "Right of Way Permit Fee (Bridges)"
+transportationPermits[transportationPermits == "MCRR 26.150 TRANSPORTATION: Stormwater Review"] <- "Stormwater Review"
+transportationPermits[transportationPermits == "MCRR 16.000: Road Rules Variance"] <- "Road Rules Variance"
+transportationPermits[transportationPermits == "MCRR 18.135 Permit extension"] <- "Permit extension"
+transportationPermits[transportationPermits == "MCRR 7.000: Transportation Impact Study Review"] <- "Transportation Impact Study Review"
+transportationPermits[transportationPermits == "27.054 Road Vacation Feasibility"] <- "Road Vacation Feasibility"
+transportationPermits[transportationPermits == "Appeal of Administrative Decision- Transportation"] <- "Appeal of Administrative Decision"
+
+
+pattern_clean<- "^.*§.*?\\)\\s*|^(§.*?)\\s+"
+transportationPermits <- sub(pattern_clean, "", transportationPermits)
+
+#temp1 <- as.data.frame(transportationPermits, temp)
+
+
+
+
+# What share of permit applications are of what type of permits in FY 2026
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |>
+  filter(Fiscal.Year == 2026) |> 
+  group_by(Fee.Name) |> 
+  summarise(Total = n())
+temp1$percent <- (temp1$Total*100/sum(temp1$Total))
+
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |>
+  filter(Fiscal.Year == 2026) |> 
+  group_by(Fee.Name) |> 
+  filter(!grepl("Deposit", Fee.Name)) |> 
+  summarise(Total = sum(Payment.Amount1))
+temp1$percent <- round(temp1$Total*100/sum(temp1$Total), digits = 1)
+ggplot(data = temp1, aes(reorder(Fee.Name, Total), percent)) +
+  geom_col() +
+  geom_text(aes(label = percent), hjust = -0.2, size = 2.5) +
+  coord_flip()+
+  labs(title = "Share of Flat-Fee Revenue by Permit Type", 
+       subtitle = "(Between July 1, 2025 to Nov 12, 2025)") +
+  xlab("Permit Types") +
+  ylab("Percent of Flat-Fee Revenue")
+
+
+#################################################################
+
+# What share of permit applications are of what type of permits in FY 2025 
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |>
+  filter(Fiscal.Year == 2025) |> 
+  group_by(Fee.Name) |> 
+  filter(!grepl("Deposit", Fee.Name)) |> 
+  filter(Fee.Name == "Appeal of Administrative Decision- Transportation")
+
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |>
+  filter(Fiscal.Year == 2025) |> 
+  group_by(Fee.Name) |> 
+  filter(!grepl("Deposit", Fee.Name)) |> 
+  summarise(Total = sum(Payment.Amount1))
+temp1$percent <- round(temp1$Total*100/sum(temp1$Total), digits = 1)
+ggplot(data = temp1, aes(reorder(Fee.Name, Total), percent)) +
+  geom_col() +
+  geom_text(aes(label = percent), hjust = -0.2, size = 2.5) +
+  coord_flip()+
+  labs(title = "Share of Flat-Fee Revenue by Permit Type", 
+       subtitle = "(Between July 1, 2024 to June 30, 2025)") +
+  xlab("Permit Types") +
+  ylab("Percent of Flat-Fee Revenue")
+
+
+#################################################################
 
 temp1 <- tylerFee |> 
   filter(Fee.Name %in% transportationPermits) |> 
@@ -448,54 +588,86 @@ temp1 <- tylerFee |>
 ggplot(data = temp1, aes(reorder(Fee.Name, Total), Total)) +
   geom_col() +
   geom_text(aes(label = Total), hjust = -0.2, size = 2.5) +
-  coord_flip()
+  coord_flip()+
+  labs(title = "Number of Permits processed", 
+       subtitle = "(Between Oct 27, 2023 to Nov 9, 2025)") +
+  xlab("Permit Types") +
+  ylab("Number of permits")
 sum(temp1$Total)
 
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |> 
+  group_by(Fee.Name, Fiscal.Year) |> 
+  filter(!grepl("Deposit", Fee.Name)) |> 
+  summarise(Total.Amount = sum(Payment.Amount1), .groups = 'drop')
 
+temp_totals <- temp1 |>
+  group_by(Fee.Name) |>
+  summarise(Total.Sum = sum(Total.Amount))
+
+ggplot(data = temp1, aes(x = reorder(Fee.Name, Total.Amount, FUN = sum), y = Total.Amount)) +
+  geom_col(aes(fill = as.factor(Fiscal.Year))) +
+  coord_flip() +
+  labs(title = "Permit Fee revenue by Permit type", 
+       subtitle = "Excluding Deposits and between Oct 2023 and Oct 2025", 
+       x = "Fee Name", 
+       y = "Total Dollar Amount",
+       fill = "Fiscal Year") 
 
 
 temp1 <- tylerFee |> 
   filter(Fee.Name %in% transportationPermits) |> 
-  group_by(Fee.Name, Fiscal.Year) |> 
+  group_by(Fee.Name) |> 
+  filter(!grepl("Deposit", Fee.Name)) |> 
+  summarise(Total.Amount = sum(Payment.Amount))
+
+ggplot(data = temp1, aes(reorder(Fee.Name, Total.Amount), Total.Amount)) +
+  geom_col() +
+  geom_text(aes(label = Total.Amount), hjust = -0.2, size = 2.5) +
+  coord_flip() +
+  labs(title = "Permit Fee revenue by Permit type", subtitle = "Excluding Deposits and between Oct 2023 and Oct 2025", x = "Fee Name", y = "Total Dollar Amount")
+
+
+temp1 <- tylerFee |> 
+  filter(Fee.Name %in% transportationPermits) |> 
+  group_by(Fee.Name) |> 
   filter(Fiscal.Year == 2024) |> 
   filter(!grepl("Deposit", Fee.Name)) |> 
-  summarise(Total.Amount = sum(Amount.Paid))
+  summarise(Total.Amount = sum(Payment.Amount))
 
 ggplot(data = temp1, aes(reorder(Fee.Name, Total.Amount), Total.Amount)) +
   geom_col() +
   geom_text(aes(label = Total.Amount), hjust = -0.2, size = 2.5) +
   coord_flip() +
-  labs(title = "FY 2024 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name")
-
-
+  labs(title = "FY 2024 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name", y = "Total Dollar Amount")
 
 temp1 <- tylerFee |> 
   filter(Fee.Name %in% transportationPermits) |> 
-  group_by(Fee.Name, Fiscal.Year) |> 
+  group_by(Fee.Name) |> 
   filter(Fiscal.Year == 2025) |> 
   filter(!grepl("Deposit", Fee.Name)) |> 
-  summarise(Total.Amount = sum(Amount.Paid))
+  summarise(Total.Amount = sum(Payment.Amount))
 
 ggplot(data = temp1, aes(reorder(Fee.Name, Total.Amount), Total.Amount)) +
   geom_col() +
   geom_text(aes(label = Total.Amount), hjust = -0.2, size = 2.5) +
   coord_flip() +
-  labs(title = "FY 2025 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name")
+  labs(title = "FY 2025 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name", y = "Total Dollar Amount")
 
 
 
 temp1 <- tylerFee |> 
   filter(Fee.Name %in% transportationPermits) |> 
-  group_by(Fee.Name, Fiscal.Year) |> 
+  group_by(Fee.Name) |> 
   filter(Fiscal.Year == 2026) |> 
   filter(!grepl("Deposit", Fee.Name)) |> 
-  summarise(Total.Amount = sum(Amount.Paid))
+  summarise(Total.Amount = sum(Payment.Amount))
 
 ggplot(data = temp1, aes(reorder(Fee.Name, Total.Amount), Total.Amount)) +
   geom_col() +
   geom_text(aes(label = Total.Amount), hjust = -0.2, size = 2.5) +
   coord_flip() +
-  labs(title = "FY 2026 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name")
+  labs(title = "FY 2026 Permit Fee revenue by Permit type", subtitle = "Excluding Deposits", x = "Fee Name", y = "Total Dollar Amount")
 
 
 
@@ -555,3 +727,50 @@ ggplot(temp1, aes(x = Fiscal.Year, y = Total, fill = PermitCategory)) +
   theme_minimal() +
   scale_y_continuous(labels = label_comma()) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+#######################################################################################################
+#############   SPECIAL EVENTS PERMIT FEE COMPARISON  #################################################
+#######################################################################################################
+file_path <- file.choose()
+SpecialEvents <- read.csv(file_path)
+library(tidyverse)
+data <- SpecialEvents %>%
+  mutate(
+    Low = Low,
+    High = High,
+    Mid = (Low + High) / 2
+    ) %>%
+  select(County, Low, Mid, High)
+
+
+plot_data <- data %>%
+  # Sort Shelter factor levels by the Cat.mid value
+  mutate(Shelter = fct_reorder(County, Mid)) %>%
+  # Reshape data from wide to long format
+  pivot_longer(
+    cols = c(Low, High, Mid),
+    names_to = "fee_type",
+    values_to = "fee_value"
+  ) %>%
+  # Remove any rows where the fee_value is NA (for single-number shelters)
+  filter(!is.na(fee_value))
+
+# 3. CREATE THE PLOT
+ggplot(plot_data, aes(x = fee_value, y = Shelter, color = fee_type)) +
+  geom_point(size = 4) + # Add the points
+  scale_color_manual( # Manually set the colors
+    name = "Fee Type", # Legend title
+    labels = c("High" = "High", "Mid" = "Mid", "Low" = "Low"),
+    values = c("High" = "red", "Mid" = "orange", "Low" = "green")
+  ) +
+  labs( # Add titles and labels
+    title = "Special Events Permit Fee Range by County",
+    subtitle = "Sorted by midpoint Special Events Permit Fee",
+    x = "Special Events Permit Fee (in $)",
+    y = "County"
+  ) +
+  scale_x_continuous(labels = scales::label_dollar()) +
+  geom_line(aes(group = Shelter), color = "gray")+
+  theme_minimal() + # Use a clean theme
+  theme(panel.grid.major.y = element_blank()) # Remove horizontal grid lines
