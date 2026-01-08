@@ -101,38 +101,6 @@ temp <- subset(feesCollected, grepl("Transfer Revenue from Deposits", feesCollec
 # Display the structure of the data frame and the type of each column
 str(feesCollected)
 
-ggplot(feesCollected, aes(x = Journal.Source, y = Amount)) +
-  geom_boxplot(fill = "skyblue", color = "black") +
-  labs(title = "Collected Fees by Journal Source",
-       x = "Journal Source",
-       y = "Amount Collected") +
-  coord_flip() +
-  coord_cartesian(ylim = c(-1000, 500)) 
-
-ggplot(feesCollected, aes(x = Project.ID, y = Amount)) +
-  geom_boxplot(fill = "skyblue", color = "black") +
-  labs(title = "Collected Fees by Journal Source",
-       x = "Journal Source",
-       y = "Amount Collected") +
-  coord_flip() +
-  coord_cartesian(ylim = c(-10000, 500)) 
-  
-
-ggplot(feesCollected, aes(x = Cost.Center, y = Amount)) +
-  geom_boxplot(fill = "skyblue", color = "black") +
-  labs(title = "Collected Fees by Journal Source",
-       x = "Journal Source",
-       y = "Amount Collected") +
-  coord_flip() +
-  coord_cartesian(ylim = c(-1000, 500)) 
-
-ggplot(feesCollected, aes(x = Primary.Cost.ObjectCategory, y = Amount)) +
-  geom_boxplot(fill = "skyblue", color = "black") +
-  labs(title = "Collected Fees by Journal Source",
-       x = "Journal Source",
-       y = "Amount Collected") +
-  coord_cartesian(ylim = c(-1000, 500)) + 
-  coord_flip()
 
 for (col_name in names(feesCollected)) {
   
@@ -234,6 +202,7 @@ ggplot(yearly_project_summary, aes(x = FY, y = -1*TotalAmount)) +
 
 
 #### Ledger.Account
+#feesCollected$Ledger.Account[grepl("PROJECT_PLAN_TASK-3-167406", feesCollected$Primary.Cost.Object.ID)] <- "PWB"
 
 yearly_Ledger.Account <- feesCollected %>%
   group_by(FY, Ledger.Account) %>%
@@ -241,6 +210,8 @@ yearly_Ledger.Account <- feesCollected %>%
     TotalAmount = sum(Amount, na.rm = TRUE)
   ) %>%
   ungroup()
+
+
 
 yearly_Ledger.Account$TotalAmount[grep("FY 2026", yearly_Ledger.Account$FY, value = FALSE)] <- 
   yearly_Ledger.Account$TotalAmount[grep("FY 2026", yearly_Ledger.Account$FY, value = FALSE)]*4
@@ -259,6 +230,15 @@ ggplot(yearly_Ledger.Account, aes(x = FY, y = -1*TotalAmount, fill = Ledger.Acco
   scale_y_continuous(labels = label_comma()) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+
+
+temp <- feesCollected |> 
+  group_by(Primary.Cost.Object.ID) |> 
+  filter(Primary.Cost.Object.ID == "PROJECT_PLAN_TASK-3-167406")
+  #summarise(TotalAmount = sum(Amount, na.rm = TRUE))
+########## Final Graph ############################
+
+
 ggplot(yearly_Ledger.Account, aes(x = FY, y = -1*TotalAmount, fill = Ledger.Account)) +
   geom_col(position = "dodge") +
   geom_text(
@@ -276,7 +256,102 @@ ggplot(yearly_Ledger.Account, aes(x = FY, y = -1*TotalAmount, fill = Ledger.Acco
   theme_minimal() +
   scale_y_continuous(labels = label_comma()) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  scale_fill_discrete(labels = c("Flat-fee permits", "Full cost recovery\ncharges for services"))
+  scale_fill_discrete(labels = c("Flat-fee permits", "Full cost recovery\ncharges for services", "Charges for services - PWB"))
+
+
+########################################################################################################
+feesCollected$Ledger.Account1 <- as.character(feesCollected$Ledger.Account)
+feesCollected$Ledger.Account1[grepl("PROJECT_PLAN_TASK-3-167406", feesCollected$Primary.Cost.Object.ID)] <- "PWB"
+summary(as.factor(feesCollected$Ledger.Account1))
+
+yearly_Ledger.Account1 <- feesCollected %>%
+  group_by(FY, Ledger.Account, Ledger.Account1) %>%
+  summarise(
+    TotalAmount = sum(Amount, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+
+
+yearly_Ledger.Account1$TotalAmount[grep("FY 2026", yearly_Ledger.Account1$FY, value = FALSE)] <- 
+  yearly_Ledger.Account1$TotalAmount[grep("FY 2026", yearly_Ledger.Account1$FY, value = FALSE)]*4
+yearly_Ledger.Account1$FY[grep("FY 2026", yearly_Ledger.Account1$FY, value = FALSE)] <- "FY 2026\n(estimate)"
+
+
+ggplot(yearly_Ledger.Account, aes(x = FY, y = -1*TotalAmount, fill = Ledger.Account)) +
+  geom_col() +
+  labs(
+    title = "Total Amount by Fiscal Year and Ledger Account",
+    x = "Fiscal Year",
+    y = "Total Amount ($)",
+    fill = "Ledger Account"
+  ) +
+  theme_minimal() +
+  scale_y_continuous(labels = label_comma()) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+temp <- feesCollected |> 
+  group_by(Primary.Cost.Object.ID) |> 
+  filter(Primary.Cost.Object.ID == "PROJECT_PLAN_TASK-3-167406")
+#summarise(TotalAmount = sum(Amount, na.rm = TRUE))
+
+########## Final Graph ############################
+
+ggplot(yearly_Ledger.Account1, aes(x = FY, y = -1*TotalAmount, fill = Ledger.Account1)) +
+  geom_col(position = "dodge") +
+  geom_text(
+    aes(label = dollar(-1*TotalAmount)),
+    position = position_dodge(width = 0.9),
+    vjust = -0.5,
+    size = 3
+  ) +
+  labs(
+    title = "Transportation Permit Fees Collection by Fiscal Year",
+    subtitle = "(after excluding fees collected from Portland Water Bureau project)",
+    x = "Fiscal Year",
+    y = "Total Amount ($)",
+    fill = "Ledger Account"
+  ) +
+  theme_minimal() +
+  scale_y_continuous(labels = label_comma()) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_fill_discrete(labels = c("Flat-fee permits", "Full cost recovery\ncharges for services", "Charges for services - PWB"))
+
+
+############### Test #####################
+
+cat1 <- "50230:Permits"
+cat2 <- "50235:Charges for Services"
+cat3 <- "PWB"
+
+ggplot(yearly_Ledger.Account1, aes(x = FY, y = -1 * TotalAmount, fill = Ledger.Account1)) +
+  # Layer 1: The "Standalone" bar (Dodge position)
+  geom_col(
+    data = subset(yearly_Ledger.Account1, Ledger.Account1 == cat1),
+    position = position_nudge(x = -0.225), # Shift left
+    width = 0.45
+  ) +
+  # Layer 2: The "Stacked" bars (Stack position)
+  geom_col(
+    data = subset(yearly_Ledger.Account1, Ledger.Account1 %in% c(cat2, cat3)),
+    position = position_stack(vjust = 1),
+    mapping = aes(x = as.numeric(as.factor(FY)) + 0.225), # Shift right
+    width = 0.45
+  ) +
+  labs(
+    title = "Transportation Permit Fees Collection by Fiscal Year",
+    subtitle = "(Revenue from the Portland Water Bureau project shown in blue)",
+    x = "Fiscal Year",
+    y = "Total Amount ($)",
+    fill = "Ledger Account"
+  ) +
+  scale_y_continuous(labels = label_comma()) +
+  scale_fill_discrete(labels = c("Flat Fee Revenue", "Full Cost Recovery Fee\nRevenue (non-PWB)", "Full Cost Recovery Fee\nRevenue from PWB")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 
 
 #### Journal.Source
