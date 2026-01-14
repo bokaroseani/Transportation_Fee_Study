@@ -321,10 +321,10 @@ ggplot(yearly_Ledger.Account1, aes(x = FY, y = -1*TotalAmount, fill = Ledger.Acc
 
 
 ############### Test #####################
-
+yearly_Ledger.Account1$Ledger.Account1[yearly_Ledger.Account1$Ledger.Account1 == "PWB"] <- "50231: PWB"
 cat1 <- "50230:Permits"
-cat2 <- "50235:Charges for Services"
-cat3 <- "PWB"
+cat3 <- "50235:Charges for Services"
+cat2 <- "50231: PWB"
 
 ggplot(yearly_Ledger.Account1, aes(x = FY, y = -1 * TotalAmount, fill = Ledger.Account1)) +
   # Layer 1: The "Standalone" bar (Dodge position)
@@ -344,12 +344,24 @@ ggplot(yearly_Ledger.Account1, aes(x = FY, y = -1 * TotalAmount, fill = Ledger.A
     title = "Transportation Permit Fees Collection by Fiscal Year",
     subtitle = "(Revenue from the Portland Water Bureau project shown in blue)",
     x = "Fiscal Year",
-    y = "Total Amount ($)",
+    y = "Total Amount",
     fill = "Ledger Account"
   ) +
-  scale_y_continuous(labels = label_comma()) +
-  scale_fill_discrete(labels = c("Flat Fee Revenue", "Full Cost Recovery Fee\nRevenue (non-PWB)", "Full Cost Recovery Fee\nRevenue from PWB")) +
+  scale_y_continuous(labels = label_dollar()) +
+  #scale_fill_discrete(labels = c("Flat Fee Revenue", "Full Cost Recovery Fee\nRevenue (non-PWB)", "Full Cost Recovery Fee\nRevenue from PWB")) +
   theme_minimal() +
+  scale_fill_manual(
+    values = c(
+      "50230:Permits" = "#1b9e77",        # Dark Green
+      "50235:Charges for Services" = "#d95f02", # Orange
+      "50231: PWB" = "skyblue"                   # Purple
+    ),
+    labels = c(
+      "50230:Permits" = "Flat Fee Revenue", 
+      "50231: PWB" = "Full Cost Recovery Fee\nRevenue from PWB",
+      "50235:Charges for Services" = "Full Cost Recovery Fee\nRevenue (non-PWB)"
+    )
+  ) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
@@ -607,7 +619,8 @@ temp1 <- tylerFee |>
   filter(Fiscal.Year == 2026) |> 
   group_by(Fee.Name) |> 
   summarise(Total = n())
-temp1$percent <- (temp1$Total*100/sum(temp1$Total))
+
+
 
 temp1 <- tylerFee |> 
   filter(Fee.Name %in% transportationPermits) |>
@@ -615,6 +628,11 @@ temp1 <- tylerFee |>
   group_by(Fee.Name) |> 
   filter(!grepl("Deposit", Fee.Name)) |> 
   summarise(Total = sum(Payment.Amount1))
+new_row <- list(Fee.Name = "Overweight/Overdimentional Move", Total = 2566*8/15)
+temp1 <- rbind(temp1, new_row)
+temp1$percent <- round(temp1$Total*100/sum(temp1$Total), digits = 1)
+sum(temp1$Total)
+temp1$percent <- (temp1$Total*100/sum(temp1$Total))
 temp1$percent <- round(temp1$Total*100/sum(temp1$Total), digits = 1)
 ggplot(data = temp1, aes(reorder(Fee.Name, Total), percent)) +
   geom_col() +
@@ -642,7 +660,11 @@ temp1 <- tylerFee |>
   group_by(Fee.Name) |> 
   filter(!grepl("Deposit", Fee.Name)) |> 
   summarise(Total = sum(Payment.Amount1))
+new_row <- list(Fee.Name = "Overweight/Overdimentional Move", Total = 2566*8/5)
+temp1 <- rbind(temp1, new_row)
 temp1$percent <- round(temp1$Total*100/sum(temp1$Total), digits = 1)
+sum(temp1$Total)
+temp1 <- subset(temp1, temp1$Fee.Name != "Permit extension")
 ggplot(data = temp1, aes(reorder(Fee.Name, Total), percent)) +
   geom_col() +
   geom_text(aes(label = percent), hjust = -0.2, size = 2.5) +
@@ -660,6 +682,7 @@ temp1 <- tylerFee |>
   group_by(Fee.Name) |> 
   summarise(Total = n())
 
+
 ggplot(data = temp1, aes(reorder(Fee.Name, Total), Total)) +
   geom_col() +
   geom_text(aes(label = Total), hjust = -0.2, size = 2.5) +
@@ -676,9 +699,15 @@ temp1 <- tylerFee |>
   filter(!grepl("Deposit", Fee.Name)) |> 
   summarise(Total.Amount = sum(Payment.Amount1), .groups = 'drop')
 
+new_row1 <- list(Fee.Name = "Overweight/Overdimentional Move", Fiscal.Year = 2024, Total.Amount = 2566*8/30)
+new_row2 <- list(Fee.Name = "Overweight/Overdimentional Move", Fiscal.Year = 2025, Total.Amount = 2566*8/5)
+new_row3 <- list(Fee.Name = "Overweight/Overdimentional Move", Fiscal.Year = 2026, Total.Amount = 2566*8/15)
+temp1 <- rbind(temp1, new_row1, new_row2, new_row3)
+
 temp_totals <- temp1 |>
   group_by(Fee.Name) |>
   summarise(Total.Sum = sum(Total.Amount))
+temp1 <- subset(temp1, temp1$Fee.Name != "Permit extension")
 
 ggplot(data = temp1, aes(x = reorder(Fee.Name, Total.Amount, FUN = sum), y = Total.Amount)) +
   geom_col(aes(fill = as.factor(Fiscal.Year))) +
